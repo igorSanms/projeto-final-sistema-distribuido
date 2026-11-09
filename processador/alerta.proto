@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package alerta;
+
+service AlertaService {
+  rpc Notificar (AlertaRequest) returns (AlertaResponse);
+}
+
+message AlertaRequest {
+  double temperatura = 1;
+  string origem = 2;
+  bool is_alerta = 3;
+}
+
+message AlertaResponse {
+  bool sucesso = 1;
+}

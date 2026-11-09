@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Térmico IoT</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0b0f19; color: #e2e8f0; padding: 20px; }
+        .dashboard-container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        
+        /* Cabeçalho */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
+        .header h1 { font-size: 1.8rem; font-weight: 600; }
+        .badge-online { background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 5px 12px; border-radius: 20px; font-size: 0.9rem; border: 1px solid #10b981; }
+        
+        /* Sistema de Grid */
+        .grid-top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .grid-bottom { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        
+        /* Cards */
+        .card { background-color: #151a27; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); position: relative; }
+        .card-title { font-size: 0.9rem; color: #94a3b8; margin-bottom: 10px; }
+        .card-value { font-size: 2.2rem; font-weight: bold; }
+        
+        /* Cores Neon e Degradês */
+        .glow-red { color: #ff4d4d; text-shadow: 0 0 10px rgba(255,77,77,0.5); }
+        .glow-blue { color: #00f3ff; text-shadow: 0 0 10px rgba(0,243,255,0.5); }
+        .glow-purple { color: #b537f2; text-shadow: 0 0 10px rgba(181,55,242,0.5); }
+        
+        .bg-gradient-red { background: linear-gradient(135deg, rgba(255,77,77,0.1) 0%, #151a27 100%); }
+        .bg-gradient-blue { background: linear-gradient(135deg, rgba(0,243,255,0.1) 0%, #151a27 100%); }
+        .bg-gradient-purple { background: linear-gradient(135deg, rgba(181,55,242,0.1) 0%, #151a27 100%); }
+
+        /* Gráficos */
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .small-chart { height: 180px; display: flex; justify-content: center; position: relative;}
+        
+        /* Alerta piscante */
+        .alerta-bar { display: none; background: #ff4d4d; color: white; text-align: center; padding: 10px; border-radius: 8px; font-weight: bold; animation: piscar 1s infinite alternate; margin-bottom: -10px;}
+        .alerta-bar.ativo { display: block; }
+        @keyframes piscar { from { opacity: 0.7; } to { opacity: 1; box-shadow: 0 0 15px #ff4d4d; } }
+
+        /* Status Info Falso */
+        .info-linha { display: flex; justify-content: space-between; margin-top: 15px; font-size: 0.9rem; border-bottom: 1px solid #2a3142; padding-bottom: 8px;}
+        .info-linha span:last-child { color: #fff; }
+        
+        /* Texto central do medidor */
+        .medidor-texto { position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .medidor-texto h2 { font-size: 1.8rem; margin: 0; }
+        .medidor-texto p { font-size: 0.8rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        
+        <header class="header">
+            <div>
+                <h1>Máquina #1 <span class="badge-online">● Operacional</span></h1>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 5px;">Monitoramento Térmico Distribuído</p>
+            </div>
+        </header>
+
+        <div id="barra-alerta" class="alerta-bar">⚠️ PERIGO: SUPERAQUECIMENTO DETECTADO!</div>
+
+        <div class="grid-top">
+            <div class="card bg-gradient-red">
+                <div class="card-title">🔥 Temperatura Máxima</div>
+                <div class="card-value glow-red" id="val-max">-- °C</div>
+            </div>
+            <div class="card bg-gradient-blue">
+                <div class="card-title">❄️ Temperatura Mínima</div>
+                <div class="card-value glow-blue" id="val-min">-- °C</div>
+            </div>
+            <div class="card bg-gradient-purple">
+                <div class="card-title">📊 Temperatura Média</div>
+                <div class="card-value glow-purple" id="val-med">-- °C</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📈 Temperatura ao Longo do Tempo (Últimas Leituras)</div>
+            <div class="chart-container">
+                <canvas id="graficoLinha"></canvas>
+            </div>
+        </div>
+
+        <div class="grid-bottom">
+            <div class="card">
+                <div class="card-title">⚡ Status Atual</div>
+                <div class="small-chart">
+                    <canvas id="graficoMedidor"></canvas>
+                    <div class="medidor-texto">
+                        <h2 id="val-atual">--</h2>
+                        <p>°C Atual</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🍩 Distribuição (Histórico Recente)</div>
+                <div class="small-chart">
+                    <canvas id="graficoDistribuicao"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">⚙️ Informações da Máquina</div>
+                <div class="info-linha"><span>Modelo</span> <span>Sensor-Mock-X1</span></div>
+                <div class="info-linha"><span>Protocolo</span> <span>TCP Sockets & gRPC</span></div>
+                <div class="info-linha"><span>Ambiente</span> <span>Kubernetes</span></div>
+                <div class="info-linha" style="border:none;"><span>Tempo de Atividade</span> <span><script>document.write(new Date().toLocaleDateString('pt-BR'))</script></span></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Segoe UI', sans-serif";
+
+        const ctxLinha = document.getElementById('graficoLinha').getContext('2d');
+        let gradienteLinha = ctxLinha.createLinearGradient(0, 0, 0, 300);
+        gradienteLinha.addColorStop(0, 'rgba(181, 55, 242, 0.4)');
+        gradienteLinha.addColorStop(1, 'rgba(181, 55, 242, 0.0)');
+
+        const graficoLinha = new Chart(ctxLinha, {
+            type: 'line',
+            data: { labels: [], datasets: [{
+                label: 'Temperatura (°C)',
+                data: [],
+                borderColor: '#b537f2', 
+                backgroundColor: gradienteLinha,
+                borderWidth: 3,
+                tension: 0.4, 
+                fill: true,
+                pointBackgroundColor: '#0b0f19',
+                pointBorderColor: '#00f3ff',
+                pointBorderWidth: 2
+            }]},
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                scales: { 
+                    y: { min: 30, max: 110, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const graficoMedidor = new Chart(document.getElementById('graficoMedidor'), {
+            type: 'doughnut',
+            data: { datasets: [{
+                data: [0, 100], 
+                backgroundColor: ['#00f3ff', 'rgba(255,255,255,0.05)'],
+                borderWidth: 0,
+                borderRadius: 20
+            }]},
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                cutout: '80%', 
+                circumference: 270, 
+                rotation: 225,
+                plugins: { tooltip: { enabled: false } }
+            }
+        });
+
+        const graficoDistribuicao = new Chart(document.getElementById('graficoDistribuicao'), {
+            type: 'doughnut',
+            data: {
+                labels: ['> 80°C (Alerta)', '60°C - 80°C (Normal)', '< 60°C (Baixa)'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['#ff4d4d', '#b537f2', '#00f3ff'],
+                    borderWidth: 2,
+                    borderColor: '#151a27'
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10} } }
+                }
+            }
+        });
+
+        function atualizarDashboard() {
+            fetch('/api/dados')
+                .then(response => response.json())
+                .then(dados => {
+                    const hist = dados.historico;
+                    const est = dados.estatisticas;
+                    
+                    if (hist.length === 0) return;
+
+                    if (est.menor_temp !== 999.0) document.getElementById('val-min').innerText = est.menor_temp + " °C";
+                    if (est.maior_temp !== 0.0) document.getElementById('val-max').innerText = est.maior_temp + " °C";
+                    if (est.media_temp !== 0.0) document.getElementById('val-med').innerText = est.media_temp + " °C";
+
+                    graficoLinha.data.labels = hist.map(d => d.tempo);
+                    graficoLinha.data.datasets[0].data = hist.map(d => d.temperatura);
+                    
+                    const ultimo = hist[hist.length - 1];
+                    const tempAtual = ultimo.temperatura;
+
+                    const barraAlerta = document.getElementById('barra-alerta');
+                    if (ultimo.is_alerta) {
+                        graficoLinha.data.datasets[0].borderColor = '#ff4d4d';
+                        barraAlerta.classList.add('ativo');
+                    } else {
+                        graficoLinha.data.datasets[0].borderColor = '#b537f2';
+                        barraAlerta.classList.remove('ativo');
+                    }
+                    graficoLinha.update();
+
+                    document.getElementById('val-atual').innerText = tempAtual;
+                    let preenchimento = tempAtual > 100 ? 100 : tempAtual;
+                    let resto = 100 - preenchimento;
+                    graficoMedidor.data.datasets[0].data = [preenchimento, resto];
+                    graficoMedidor.data.datasets[0].backgroundColor[0] = ultimo.is_alerta ? '#ff4d4d' : '#00f3ff';
+                    graficoMedidor.update();
+
+                    let acima = 0, media = 0, baixa = 0;
+                    hist.forEach(d => {
+                        if (d.temperatura >= 80) acima++;
+                        else if (d.temperatura >= 60) media++;
+                        else baixa++;
+                    });
+                    graficoDistribuicao.data.datasets[0].data = [acima, media, baixa];
+                    graficoDistribuicao.update();
+                });
+        }
+
+        setInterval(atualizarDashboard, 2000);
+    </script>
+</body>
+</html>

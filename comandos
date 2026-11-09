@@ -1,0 +1,9 @@
+Apagar os microsserviços do Kubernetes:kubectl delete -f k8s/
+Desligar o cluster do Minikube: minikube stop
+
+Ligar o cluster do Minikube: minikube start
+Subir todos os microsserviços de uma vez: kubectl apply -f k8s/
+Abrir o painel no navegador: minikube service dashboard
+
+
+kubectl logs -f deployment/processador
